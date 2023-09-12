@@ -1,59 +1,79 @@
-import numpy as np
-import cv2
+from dotenv import load_dotenv
 import os
+from langchain.chat_models import ChatOpenAI
+from langchain.chains import ConversationChain
+# from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationEntityMemory
+from langchain.memory.prompt import ENTITY_MEMORY_CONVERSATION_TEMPLATE
 
-# load the model and image path
-prototxt_path='model/colorization_deploy_v2.prototxt'
-model_path='model/colorization_release_v2.caffemodel'
-kernel_path='model/pts_in_hull.npy'
-img_path='rain.jpg'
-
-
-# load the model
-net=cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
-points = np.load(kernel_path)
-
-points=points.transpose().reshape(2,313,1,1)
-net.getLayer(net.getLayerId("class8_ab")).blobs=[points.astype(np.float32)]
-net.getLayer(net.getLayerId("conv8_313_rh")).blobs = [np.full([1,313], 2.606, dtype="float32")]
-
-# LAB
-# converting image to tensor for computation
-bw_image=cv2.imread(img_path)
-normalized=bw_image.astype("float32") / 255.0
+# from langchain.schema import (
+#     SystemMessage,
+#     HumanMessage,
+#     AIMessage
+# )
 
 
-lab=cv2.cvtColor(normalized, cv2.COLOR_BGR2LAB)
-# we are converting BGR because the opencv takes BGR not RGB
+def main():
 
-# resize for same image size and shaope
-resized=cv2.resize(lab,(224,224))
-# takes l channel of the LAB image
-L=cv2.split(resized)[0]
-L -= 50
+    load_dotenv()
+    # print("MY api key is: ", os.getenv('OPENAI_API_KEY'))
 
 
-# colorising the image
-net.setInput(cv2.dnn.blobFromImage(L))
-ab=net.forward()[0, :, :, : ].transpose((1,2,0))
+    # test our api key
+    if os.getenv('OPENAI_API_KEY') is None or os.getenv("OPENAI_API_KEY")=="":
+        print("Invalid or empty string in OPENAI_KEY")
+        exit(1)
+    else:
+        print("ALL GOOD")
 
-ab=cv2.resize(ab, (bw_image.shape[1], bw_image.shape[0]))
-L=cv2.split(lab)[0]
+    # chat = ChatOpenAI(temperature=0.9)
+    llm = ChatOpenAI()
+    conversation = ConversationChain(llm=llm,
+                                     memory=ConversationEntityMemory(llm=llm),
+                                     prompt=ENTITY_MEMORY_CONVERSATION_TEMPLATE,
 
-colorized=np.concatenate((L[:,:, np.newaxis], ab), axis=2)
-colorized=cv2.cvtColor(colorized, cv2.COLOR_LAB2BGR)
-colorized=(255.0 * colorized).astype("uint8")
+    #for summerrising or generating the info
 
-cv2.imshow("BW image",bw_image)
-cv2.imshow("colorised image",colorized)
+                                     verbose=True
+                                     )
 
-# for saving the outup of the program
-print("Before saving image:")
-print(os.listdir('model/Saved'))
-# Filename
-filename = 'savedImage2.jpg'
-# Using cv2.imwrite() method
-# Saving the image
-cv2.imwrite(filename, colorized)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+
+
+    # messages = [
+    #     SystemMessage(content="Your a  helpful assistant"),
+    # ]
+    print("Hello , I am chatgpt-cli")
+    # using buffffer memeory
+    while True:
+        user_input = input(">")
+        ai_response = conversation.predict(input=user_input)
+        print("\n Assistant :", ai_response)
+
+
+
+    # basic loop
+    # while True:
+    #     user_input = input(">")
+    #     messages.append(HumanMessage(content=user_input))
+    #
+    #     ai_response=  chat(messages)
+    #     messages.append(AIMessage(content=ai_response.content))
+    #     print("\n Assistant says", ai_response.content)
+    #
+    #
+    #     # print hostoiry of messgaaes
+    #     print("history ",messages)
+    #
+    #  using conversation buffer memory
+
+
+
+
+# memory tutorial
+# conversationalbuffer
+# entity memory
+
+if __name__ == '__main__':
+    main()
+
+
